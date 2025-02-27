@@ -23,9 +23,9 @@ app.post("/create-checkout-session", async (req, res) => {
         }
 
         const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
+            payment_method_types: ["card"], // Отключаем Link
             locale: "en",
-            allow_promotion_codes: false, // Отключает Link
+            allow_promotion_codes: false,
             receipt_email: req.body.email, // Отправка чека на email
             line_items: [
                 {
@@ -59,17 +59,18 @@ app.post("/creatium-payment", async (req, res) => {
         const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.text?.split(";")[0].split(" - ")[1] || "Товар без названия";
         const price = Math.round(parseFloat(req.body.payment?.amount) * 100); // Преобразуем в центы
         const currency = "nzd"; // Валюта фиксирована в NZD
+        const email = req.body.payment?.email; // Получаем email клиента
 
-        if (!payment_key || !product || isNaN(price) || !currency) {
-            console.log("Missing required fields", { payment_key, product, price, currency });
-            return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency } });
+        if (!payment_key || !product || isNaN(price) || !currency || !email) {
+            console.log("Missing required fields", { payment_key, product, price, currency, email });
+            return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency, email } });
         }
 
         const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
+            payment_method_types: ["card"], // Отключаем Link
             locale: "en",
-            allow_promotion_codes: false, // Отключает Link
-            receipt_email: req.body.email, // Отправка чека на email
+            allow_promotion_codes: false,            
+            receipt_email: email, // Отправка чека на email
             line_items: [
                 {
                     price_data: {
@@ -98,16 +99,20 @@ app.post("/creatium-payment", async (req, res) => {
 // Эндпоинт для обработки вебхуков от Stripe
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
     const sig = req.headers["stripe-signature"];
+    let event;
 
     try {
-        const event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        console.log("✅ Webhook received:", event.type);
 
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
             const payment_key = session.success_url.split("payment_key=")[1];
-            console.log("Payment completed for:", payment_key);
 
-            await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
+            console.log("✅ Payment completed for:", payment_key);
+
+            // Отправляем статус оплаты в Creatium
+            const creatiumResponse = await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -117,11 +122,13 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
                     status: "succeeded"
                 })
             });
+
+            console.log("✅ Creatium response status:", creatiumResponse.status);
         }
 
         res.json({ received: true });
     } catch (error) {
-        console.log("Webhook Error:", error.message);
+        console.error("❌ Webhook Error:", error.message);
         res.status(400).json({ error: "Webhook error" });
     }
 });
