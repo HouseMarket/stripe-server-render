@@ -10,7 +10,8 @@ const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json()); // Вместо bodyParser.json()
+app.use(express.urlencoded({ extended: true })); // Добавляем поддержку form-data
 
 // Эндпоинт для создания платежной сессии
 app.post("/create-checkout-session", async (req, res) => {
@@ -49,9 +50,11 @@ app.post("/create-checkout-session", async (req, res) => {
 // Новый маршрут для Creatium
 app.post("/creatium-payment", async (req, res) => {
     try {
-        const { product, price, currency } = req.body;
+        console.log("Received request from Creatium:", req.body);
+        const { payment_key, product, price, currency } = req.body;
 
-        if (!product || !price || !currency) {
+        if (!payment_key || !product || !price || !currency) {
+            console.log("Missing required fields");
             return res.status(400).json({ error: "Missing required fields" });
         }
 
@@ -70,12 +73,14 @@ app.post("/creatium-payment", async (req, res) => {
                 },
             ],
             mode: "payment",
-            success_url: `${process.env.CLIENT_URL}/success`,
-            cancel_url: `${process.env.CLIENT_URL}/cancel`,
+            success_url: `${process.env.CLIENT_URL}/success?payment_key=${payment_key}`,
+            cancel_url: `${process.env.CLIENT_URL}/cancel?payment_key=${payment_key}`,
         });
 
+        console.log("Session created:", session.url);
         res.json({ url: session.url });
     } catch (error) {
+        console.log("Error:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -86,23 +91,27 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
     try {
         const event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-        
+
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
+            const payment_key = session.success_url.split("payment_key=")[1];
+            console.log("Payment completed for:", payment_key);
+
             await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    payment_key: session.id,
-                    status: "success"
+                    payment_key: payment_key,
+                    status: "succeeded"
                 })
             });
         }
 
         res.json({ received: true });
     } catch (error) {
+        console.log("Webhook Error:", error.message);
         res.status(400).json({ error: "Webhook error" });
     }
 });
