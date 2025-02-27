@@ -23,9 +23,9 @@ app.post("/create-checkout-session", async (req, res) => {
         }
 
         const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"], // Отключаем Link
+            payment_method_types: ["card"],
             locale: "en",
-            allow_promotion_codes: false,
+            allow_promotion_codes: false, // Отключает Link
             receipt_email: req.body.email, // Отправка чека на email
             line_items: [
                 {
@@ -59,18 +59,17 @@ app.post("/creatium-payment", async (req, res) => {
         const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.text?.split(";")[0].split(" - ")[1] || "Товар без названия";
         const price = Math.round(parseFloat(req.body.payment?.amount) * 100); // Преобразуем в центы
         const currency = "nzd"; // Валюта фиксирована в NZD
-        const email = req.body.payment?.email; // Получаем email клиента
 
-        if (!payment_key || !product || isNaN(price) || !currency || !email) {
-            console.log("Missing required fields", { payment_key, product, price, currency, email });
-            return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency, email } });
+        if (!payment_key || !product || isNaN(price) || !currency) {
+            console.log("Missing required fields", { payment_key, product, price, currency });
+            return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency } });
         }
 
         const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"], // Отключаем Link
+            payment_method_types: ["card"],
             locale: "en",
-            allow_promotion_codes: false,            
-            receipt_email: email, // Отправка чека на email
+            allow_promotion_codes: false, // Отключает Link
+            receipt_email: req.body.email, // Отправка чека на email
             line_items: [
                 {
                     price_data: {
