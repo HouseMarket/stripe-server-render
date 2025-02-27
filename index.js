@@ -23,9 +23,10 @@ app.post("/create-checkout-session", async (req, res) => {
         }
 
         const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
+            payment_method_types: ["card"], // Отключаем Link
             locale: "en",
-            allow_promotion_codes: false, // Отключает Link
+            allow_promotion_codes: false,
+            billing_address_collection: "required", // Убираем сохранённые методы оплаты
             line_items: [
                 {
                     price_data: {
@@ -65,9 +66,10 @@ app.post("/creatium-payment", async (req, res) => {
         }
 
         const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
+            payment_method_types: ["card"], // Отключаем Link
             locale: "en",
-            allow_promotion_codes: false, // Отключает Link
+            allow_promotion_codes: false,
+            billing_address_collection: "required", // Убираем сохранённые методы оплаты
             line_items: [
                 {
                     price_data: {
@@ -126,3 +128,4 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
