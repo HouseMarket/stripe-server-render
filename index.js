@@ -17,6 +17,10 @@ app.post("/create-checkout-session", async (req, res) => {
     try {
         const { product, price, currency } = req.body;
 
+        if (!product || !price || !currency) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             line_items: [
@@ -27,6 +31,40 @@ app.post("/create-checkout-session", async (req, res) => {
                             name: product,
                         },
                         unit_amount: price * 100,
+                    },
+                    quantity: 1,
+                },
+            ],
+            mode: "payment",
+            success_url: `${process.env.CLIENT_URL}/success`,
+            cancel_url: `${process.env.CLIENT_URL}/cancel`,
+        });
+
+        res.json({ url: session.url });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Новый маршрут для Creatium
+app.post("/creatium-payment", async (req, res) => {
+    try {
+        const { product, price, currency } = req.body;
+
+        if (!product || !price || !currency) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ["card"],
+            line_items: [
+                {
+                    price_data: {
+                        currency,
+                        product_data: {
+                            name: product,
+                        },
+                        unit_amount: price,
                     },
                     quantity: 1,
                 },
