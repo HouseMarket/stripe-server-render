@@ -25,9 +25,8 @@ app.post("/create-checkout-session", async (req, res) => {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"], // Отключаем Link
             locale: "en",
-            allow_promotion_codes: false,
-            billing_address_collection: "required", // Убираем сохранённые методы оплаты
-            receipt_email: req.body.email, // Отправка чека на email
+            allow_promotion_codes: false,            
+            customer_email: req.body.email, // Отправка чека на email
             line_items: [
                 {
                     price_data: {
@@ -56,22 +55,22 @@ app.post("/creatium-payment", async (req, res) => {
     try {
         console.log("Received request from Creatium:", JSON.stringify(req.body, null, 2));
 
-        const payment_key = req.body.payment?.key || req.body.payment?.external_id || null;
-        const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.items?.[0]?.title || "Unknown Product";
-        const price = Math.round(parseFloat(req.body.payment?.amount) * 100) || null;
-        const currency = req.body.payment?.currency || "nzd"; // Если пусто, ставим NZD
-        const email = req.body.payment?.email || "no-email@example.com"; // Если нет email, ставим заглушку
+        const payment_key = req.body.payment?.key;
+        const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.text?.split(";")[0].split(" - ")[1] || "Товар без названия";
+        const price = Math.round(parseFloat(req.body.payment?.amount) * 100); // Преобразуем в центы
+        const currency = "nzd"; // Валюта фиксирована в NZD
+        const email = req.body.payment?.email; // Получаем email клиента
 
         if (!payment_key || !product || isNaN(price) || !currency || !email) {
-            console.log("❌ Missing required fields:", { payment_key, product, price, currency, email });
+            console.log("Missing required fields", { payment_key, product, price, currency, email });
             return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency, email } });
         }
 
         const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
+            payment_method_types: ["card"], // Отключаем Link
             locale: "en",
-            allow_promotion_codes: false,           
-            receipt_email: email,
+            allow_promotion_codes: false,            
+            customer_email: email, // Отправка чека на email
             line_items: [
                 {
                     price_data: {
@@ -89,10 +88,10 @@ app.post("/creatium-payment", async (req, res) => {
             cancel_url: `${process.env.CLIENT_URL}/cancel?payment_key=${payment_key}`,
         });
 
-        console.log("✅ Payment session created:", session.url);
+        console.log("Session created:", session.url);
         res.json({ url: session.url });
     } catch (error) {
-        console.log("❌ Error creating payment session:", error.message);
+        console.log("Error:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -136,3 +135,4 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
