@@ -25,6 +25,7 @@ app.post("/create-checkout-session", async (req, res) => {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             locale: "en",
+            allow_promotion_codes: false, // Отключает Link
             line_items: [
                 {
                     price_data: {
@@ -66,6 +67,7 @@ app.post("/creatium-payment", async (req, res) => {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             locale: "en",
+            allow_promotion_codes: false, // Отключает Link
             line_items: [
                 {
                     price_data: {
