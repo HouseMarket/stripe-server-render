@@ -37,7 +37,7 @@ app.post("/create-checkout-session", async (req, res) => {
                 },
             ],
             mode: "payment",
-            success_url: `${process.env.CLIENT_URL}/success`,
+            success_url: `${process.env.CLIENT_URL}/payment-success`,
             cancel_url: `${process.env.CLIENT_URL}/cancel`,
         });
 
@@ -52,19 +52,16 @@ app.post("/creatium-payment", async (req, res) => {
     try {
         console.log("Received request from Creatium:", JSON.stringify(req.body, null, 2));
 
-        // Извлекаем данные из структуры запроса
         const payment_key = req.body.payment?.key;
         const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.text?.split(";")[0].split(" - ")[1] || "Товар без названия";
         const price = Math.round(parseFloat(req.body.payment?.amount) * 100); // Преобразуем в центы
         const currency = "nzd"; // Валюта фиксирована в NZD
 
-        // Проверяем, что все данные получены
         if (!payment_key || !product || isNaN(price) || !currency) {
             console.log("Missing required fields", { payment_key, product, price, currency });
             return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency } });
         }
 
-        // Создаём сессию оплаты в Stripe
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             line_items: [
@@ -74,25 +71,23 @@ app.post("/creatium-payment", async (req, res) => {
                         product_data: {
                             name: product,
                         },
-                        unit_amount: price, // Цена в центах
+                        unit_amount: price,
                     },
                     quantity: 1,
                 },
             ],
             mode: "payment",
-            success_url: `${process.env.CLIENT_URL}/success?payment_key=${payment_key}`,
+            success_url: `${process.env.CLIENT_URL}/payment-success?payment_key=${payment_key}`,
             cancel_url: `${process.env.CLIENT_URL}/cancel?payment_key=${payment_key}`,
         });
 
         console.log("Session created:", session.url);
         res.json({ url: session.url });
-
     } catch (error) {
         console.log("Error:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
-
 
 // Эндпоинт для обработки вебхуков от Stripe
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
@@ -127,3 +122,4 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
