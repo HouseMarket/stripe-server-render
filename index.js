@@ -70,8 +70,7 @@ app.post("/creatium-payment", async (req, res) => {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             locale: "en",
-            allow_promotion_codes: false,
-            billing_address_collection: "required",
+            allow_promotion_codes: false,           
             receipt_email: email,
             line_items: [
                 {
