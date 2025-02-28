@@ -54,9 +54,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
 // Эндпоинт для создания платежной сессии
 app.post("/create-checkout-session", async (req, res) => {
     try {
