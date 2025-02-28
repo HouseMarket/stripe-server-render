@@ -8,11 +8,7 @@ dotenv.config();
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-app.use(cors());
-
-import * as crypto from "crypto";
-
-// Эндпоинт для обработки вебхуков от Stripe (должен быть ДО express.json())
+// 🔥 Важно! Вебхук должен идти ДО express.json() и express.urlencoded()!
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
     console.log("🔹 Вебхук получен от Stripe");
     console.log("🔹 Headers:", req.headers);
@@ -23,8 +19,6 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         console.error("❌ req.rawBody отсутствует или имеет неверный формат!");
         return res.status(400).json({ error: "rawBody is missing or incorrect format" });
     }
-
-    console.log("🔹 req.rawBody type (должен быть Buffer):", Buffer.isBuffer(req.rawBody) ? "✅ Buffer" : "❌ NOT Buffer");
 
     try {
         const sig = req.headers["stripe-signature"];
@@ -55,9 +49,13 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     }
 });
 
-// Подключаем JSON-парсер ПОСЛЕ вебхуков
-app.use(express.json()); // Обычный JSON-парсинг для всех эндпоинтов, кроме вебхуков
+// ✅ Только теперь подключаем JSON-парсер
+app.use(cors());
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 // Эндпоинт для создания платежной сессии
 app.post("/create-checkout-session", async (req, res) => {
