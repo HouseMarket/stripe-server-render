@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// 🔥 Вебхук должен идти ДО express.json() и express.urlencoded()!
+// ✅ Вебхук должен идти ДО express.json() и express.urlencoded()!
 app.post(
     "/webhook",
     express.raw({ type: "application/json" }),
@@ -19,26 +19,39 @@ app.post(
         console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
         console.log("🔹 Content-Type:", req.headers["content-type"]);
 
-        if (!req.rawBody || !Buffer.isBuffer(req.rawBody)) {
-            console.error("❌ req.rawBody отсутствует или имеет неверный формат!");
+        // ✅ Проверяем, является ли req.body Buffer'ом
+        if (!req.body || typeof req.body !== "object") {
+            console.error("❌ req.body отсутствует или имеет неверный формат!");
             return res
                 .status(400)
-                .json({ error: "rawBody is missing or incorrect format" });
+                .json({ error: "req.body is missing or incorrect format" });
+        }
+
+        // ✅ Проверяем, есть ли req.rawBody и преобразуем при необходимости
+        const rawBodyBuffer = Buffer.isBuffer(req.body)
+            ? req.body
+            : Buffer.from(JSON.stringify(req.body));
+
+        if (!Buffer.isBuffer(rawBodyBuffer)) {
+            console.error("❌ rawBodyBuffer не является Buffer!");
+            return res
+                .status(400)
+                .json({ error: "rawBodyBuffer is not a valid Buffer" });
         }
 
         // 🔍 Проверка SHA256 и логирование
         console.log(
             "🔹 req.rawBody (как строка):",
-            req.rawBody.toString().slice(0, 200)
+            rawBodyBuffer.toString().slice(0, 200)
         );
         console.log(
             "🔹 req.rawBody HEX (первые 100 символов):",
-            req.rawBody.toString("hex").slice(0, 100)
+            rawBodyBuffer.toString("hex").slice(0, 100)
         );
 
         const computedHash = crypto
             .createHash("sha256")
-            .update(req.rawBody)
+            .update(rawBodyBuffer)
             .digest("hex");
         console.log(
             "🔹 req.rawBody SHA256 (перед отправкой в constructEvent):",
@@ -48,11 +61,11 @@ app.post(
         try {
             const sig = req.headers["stripe-signature"];
 
-            // 🔥 Важное исправление: передача Buffer напрямую и trim() для STRIPE_WEBHOOK_SECRET
+            // ✅ Передача Buffer напрямую в constructEvent
             let event;
             try {
                 event = stripe.webhooks.constructEvent(
-                    req.rawBody,
+                    rawBodyBuffer,
                     sig.trim(),
                     process.env.STRIPE_WEBHOOK_SECRET.trim()
                 );
