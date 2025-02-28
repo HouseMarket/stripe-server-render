@@ -9,17 +9,18 @@ const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 app.use(cors());
-app.use(express.json()); // Обычный JSON-парсинг для всех эндпоинтов, кроме вебхуков
-app.use(express.urlencoded({ extended: true }));
 
-// Эндпоинт для обработки вебхуков от Stripe (должен быть до express.json())
-app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+// Эндпоинт для обработки вебхуков от Stripe (ВАЖНО: должен быть ДО express.json())
+app.post("/webhook", express.raw({ 
+    type: "application/json", 
+    verify: (req, res, buf) => { req.rawBody = buf; } // Сохраняем "сырое" тело запроса
+}), async (req, res) => {
     const sig = req.headers["stripe-signature"];
     let event;
 
     try {
-        // Исправлено: Передаём req.body как Buffer (сырой JSON)
-        event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        // Используем req.rawBody вместо req.body
+        event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
         if (event.type === "checkout.session.completed") {
@@ -45,8 +46,8 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     }
 });
 
-// ВАЖНО! express.json() НЕ должен идти ПЕРЕД "/webhook"
-app.use(express.json());
+// Подключаем JSON-парсер ПОСЛЕ вебхуков
+app.use(express.json()); // Обычный JSON-парсинг для всех эндпоинтов, кроме вебхуков
 app.use(express.urlencoded({ extended: true }));
 
 // Эндпоинт для создания платежной сессии
