@@ -10,9 +10,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 app.use(cors());
 
-// Эндпоинт для обработки вебхуков от Stripe (должен быть до express.json())
-const crypto = require("crypto");
+import crypto from "crypto";
 
+// Эндпоинт для обработки вебхуков от Stripe (должен быть до express.json())
 app.post("/webhook", express.raw({ 
     type: "application/json", 
     verify: (req, res, buf) => { req.rawBody = buf; } // Сохраняем Buffer
