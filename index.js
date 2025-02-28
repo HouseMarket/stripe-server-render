@@ -34,17 +34,7 @@ app.post("/webhook", express.raw({
     console.log("🔹 req.rawBody HEX (первые 100 символов):", req.rawBody.toString("hex").slice(0, 100));
 
     // Вычисляем SHA256 хеш
-    const hash = crypto.createHash("sha256").update(req.rawBody).digest("hex");
-    console.log("🔹 req.rawBody SHA256:", hash);
-
-    try {
-        const sig = req.headers["stripe-signature"];
-        import crypto from "crypto";
-
-console.log("🔹 req.rawBody (как строка, перед хешем):", req.rawBody.toString());
-
-// 🔍 Вычисляем новый SHA256-хеш и сравниваем его с оригинальным
-import * as crypto from "crypto";
+    const crypto = await import("crypto");
 
 console.log("🔹 req.rawBody (как строка, перед хешем):", req.rawBody.toString());
 
@@ -54,30 +44,15 @@ console.log("🔹 req.rawBody SHA256 (после обработки):", computed
 
 console.log("🔹 Сравнение с оригинальным SHA256: ", computedHash === "4a4d7832a32f3ca6ed194f49a1afda8c9edda03c70d7ee884cc34de4ee921243" ? "✅ Совпадает" : "❌ НЕ совпадает");
 
-        const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
-        console.log("✅ Webhook received:", event.type);
-
-        if (event.type === "checkout.session.completed") {
-            const session = event.data.object;
-            const payment_key = session.success_url.split("payment_key=")[1];
-
-            console.log("✅ Payment completed for:", payment_key);
-
-            await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ payment_key, status: "succeeded" })
-            });
-
-            console.log("✅ Notification sent to Creatium");
-        }
-
-        res.json({ received: true });
-    } catch (error) {
-        console.error("❌ Webhook Error:", error.message);
-        res.status(400).json({ error: "Webhook error" });
-    }
-});
+try {
+    const sig = req.headers["stripe-signature"];
+    
+    const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    console.log("✅ Webhook received:", event.type);
+} catch (error) {
+    console.error("❌ Webhook Error:", error.message);
+    res.status(400).json({ error: "Webhook error" });
+}
 
 // Подключаем JSON-парсер ПОСЛЕ вебхуков
 app.use(express.json()); // Обычный JSON-парсинг для всех эндпоинтов, кроме вебхуков
