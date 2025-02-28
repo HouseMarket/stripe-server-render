@@ -98,6 +98,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     let event;
 
     try {
+        // Передаём req.body вместо req.rawBody
         event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
