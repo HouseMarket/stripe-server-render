@@ -39,6 +39,7 @@ app.post("/webhook", express.raw({
 
     try {
         const sig = req.headers["stripe-signature"];
+        console.log("🔹 req.rawBody (как строка):", req.rawBody.toString());
         const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
