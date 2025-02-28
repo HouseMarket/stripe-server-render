@@ -98,7 +98,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     let event;
 
     try {
-        event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
         if (event.type === "checkout.session.completed") {
