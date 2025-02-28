@@ -28,21 +28,19 @@ app.post("/webhook", express.raw({
     }
 
     console.log("🔹 req.rawBody type (должен быть Buffer):", Buffer.isBuffer(req.rawBody) ? "✅ Buffer" : "❌ NOT Buffer");
-    console.log("🔹 req.rawBody (первые 200 символов):", req.rawBody.toString().slice(0, 200));
 
-    // Преобразуем тело запроса в HEX
-    console.log("🔹 req.rawBody HEX (первые 100 символов):", req.rawBody.toString("hex").slice(0, 100));
+    // Принудительно сохраняем rawBody как строку перед подписью
+    const rawBody = req.rawBody.toString();
 
-    // Вычисляем SHA256 хеш
-    console.log("🔹 req.rawBody (как строка, перед хешем):", req.rawBody.toString());
+    console.log("🔹 rawBody (как строка перед подписью):", rawBody);
 
     // 🔍 Вычисляем новый SHA256-хеш и сравниваем его с оригинальным
-    const computedHash = crypto.createHash("sha256").update(req.rawBody).digest("hex");
-    console.log("🔹 req.rawBody SHA256 (после обработки):", computedHash);
+    const computedHash = crypto.createHash("sha256").update(rawBody).digest("hex");
+    console.log("🔹 rawBody SHA256 (после обработки):", computedHash);
 
     try {
         const sig = req.headers["stripe-signature"];
-        const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        const event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
 
         console.log("✅ Webhook received:", event.type);
 
