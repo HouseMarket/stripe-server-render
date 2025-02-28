@@ -58,8 +58,7 @@ app.post("/creatium-payment", async (req, res) => {
         const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.items?.[0]?.title || "Unknown Product";
         const price = Math.round(parseFloat(req.body.payment?.amount) * 100) || null;
         const currency = req.body.payment?.currency || "nzd"; // Если пусто, ставим NZD
-        const email = req.body.payment?.email || "no-email@example.com"; // Если нет email, ставим заглушку
-
+        
         if (!payment_key || !product || isNaN(price) || !currency || !email) {
             console.log("❌ Missing required fields:", { payment_key, product, price, currency, email });
             return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency, email } });
@@ -68,9 +67,7 @@ app.post("/creatium-payment", async (req, res) => {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             locale: "en",
-            allow_promotion_codes: false,
-            billing_address_collection: "required",
-            receipt_email: email,
+            allow_promotion_codes: false,            
             line_items: [
                 {
                     price_data: {
