@@ -9,45 +9,56 @@ const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // 🔥 Важно! Вебхук должен идти ДО express.json() и express.urlencoded()!
-app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-    console.log("🔹 Вебхук получен от Stripe");
-    console.log("🔹 Headers:", req.headers);
-    console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
-    console.log("🔹 Content-Type:", req.headers["content-type"]);
+app.post(
+    "/webhook",
+    express.raw({ 
+        type: "application/json", 
+        verify: (req, res, buf) => {
+            req.rawBody = buf; // Сохраняем сырое тело запроса
+        } 
+    }),
+    async (req, res) => {
+        console.log("🔹 Вебхук получен от Stripe");
+        console.log("🔹 Headers:", req.headers);
+        console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
+        console.log("🔹 Content-Type:", req.headers["content-type"]);
 
-    if (!req.rawBody || !Buffer.isBuffer(req.rawBody)) {
-        console.error("❌ req.rawBody отсутствует или имеет неверный формат!");
-        return res.status(400).json({ error: "rawBody is missing or incorrect format" });
-    }
-
-    try {
-        const sig = req.headers["stripe-signature"];
-        const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
-        
-        console.log("✅ Webhook received:", event.type);
-
-        if (event.type === "checkout.session.completed") {
-            const session = event.data.object;
-            const payment_key = session.success_url.split("payment_key=")[1];
-
-            console.log("✅ Payment completed for:", payment_key);
-
-            // Отправляем статус оплаты в Creatium
-            await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ payment_key, status: "succeeded" })
-            });
-
-            console.log("✅ Notification sent to Creatium");
+        // 🔍 Проверяем, что req.rawBody является Buffer
+        if (!req.rawBody || !Buffer.isBuffer(req.rawBody)) {
+            console.error("❌ req.rawBody отсутствует или имеет неверный формат!");
+            return res.status(400).json({ error: "rawBody is missing or incorrect format" });
         }
+        console.log("✅ req.rawBody type (Buffer):", Buffer.isBuffer(req.rawBody) ? "✅ Да" : "❌ Нет");
 
-        res.json({ received: true });
-    } catch (error) {
-        console.error("❌ Webhook Error:", error.message);
-        res.status(400).json({ error: "Webhook error" });
+        try {
+            const sig = req.headers["stripe-signature"];
+            const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+
+            console.log("✅ Webhook received:", event.type);
+
+            if (event.type === "checkout.session.completed") {
+                const session = event.data.object;
+                const payment_key = session.success_url.split("payment_key=")[1];
+
+                console.log("✅ Payment completed for:", payment_key);
+
+                // Отправляем статус оплаты в Creatium
+                await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ payment_key, status: "succeeded" })
+                });
+
+                console.log("✅ Notification sent to Creatium");
+            }
+
+            res.json({ received: true });
+        } catch (error) {
+            console.error("❌ Webhook Error:", error.message);
+            res.status(400).json({ error: "Webhook error" });
+        }
     }
-});
+);
 
 // ✅ Только теперь подключаем JSON-парсер
 app.use(cors());
