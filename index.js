@@ -33,8 +33,13 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         const sig = req.headers["stripe-signature"];
 
         // 🔥 Важное исправление: передача Buffer напрямую
-        const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET);
-
+        let event;
+try {
+    event = stripe.webhooks.constructEvent(rawBodyBuffer, sig.trim(), process.env.STRIPE_WEBHOOK_SECRET.trim());
+} catch (error) {
+    console.error("❌ Webhook Signature Error:", error.message);
+    return res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
+}
         console.log("✅ Webhook received:", event.type);
 
         if (event.type === "checkout.session.completed") {
