@@ -9,6 +9,12 @@ dotenv.config();
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// 🔥 Отключаем Render Proxy
+app.use((req, res, next) => {
+    res.setHeader("x-render-proxy-ttl", "0");
+    next();
+});
+
 // 🔥 Важно! Вебхук должен идти ДО express.json() и express.urlencoded()
 app.post(
     "/webhook",
@@ -70,6 +76,7 @@ app.post(
         }
     }
 );
+
 
 // ✅ Только теперь подключаем JSON-парсер
 app.use(cors());
