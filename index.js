@@ -18,6 +18,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     let event;
 
     try {
+        // Исправлено: Передаём req.body как Buffer (сырой JSON)
         event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
@@ -43,6 +44,10 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         res.status(400).json({ error: "Webhook error" });
     }
 });
+
+// ВАЖНО! express.json() НЕ должен идти ПЕРЕД "/webhook"
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Эндпоинт для создания платежной сессии
 app.post("/create-checkout-session", async (req, res) => {
