@@ -26,7 +26,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
     // 🔍 Проверка SHA256
     const computedHash = crypto.createHash("sha256").update(rawBodyBuffer).digest("hex");
-    console.log("🔹 req.rawBody (как строка):", rawBodyBuffer.toString());
+    console.log("🔹 req.rawBody (как строка):", req.rawBody.toString().slice(0, 200));
     console.log("🔹 req.rawBody SHA256 (перед отправкой в constructEvent):", computedHash);
     console.log("🔹 req.rawBody HEX (первые 100 символов):", rawBodyBuffer.toString("hex").slice(0, 100));
 
