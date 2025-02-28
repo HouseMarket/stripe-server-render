@@ -32,6 +32,11 @@ app.post("/webhook", express.raw({
         console.log("🔹 req.rawBody (первые 200 символов):", req.rawBody.toString().slice(0, 200));
 
         // Проверяем правильность подписания вебхука
+        console.log("🔹 Headers:", req.headers);
+console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
+console.log("🔹 Content-Type:", req.headers["content-type"]);
+console.log("🔹 req.rawBody type:", typeof req.rawBody);
+console.log("🔹 req.rawBody (первые 200 символов):", req.rawBody.toString().slice(0, 200));
         event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
