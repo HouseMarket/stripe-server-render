@@ -44,6 +44,11 @@ app.post("/webhook", express.raw({
 console.log("🔹 req.rawBody (как строка, перед хешем):", req.rawBody.toString());
 
 // 🔍 Вычисляем новый SHA256-хеш и сравниваем его с оригинальным
+import * as crypto from "crypto";
+
+console.log("🔹 req.rawBody (как строка, перед хешем):", req.rawBody.toString());
+
+// 🔍 Вычисляем новый SHA256-хеш и сравниваем его с оригинальным
 const computedHash = crypto.createHash("sha256").update(req.rawBody).digest("hex");
 console.log("🔹 req.rawBody SHA256 (после обработки):", computedHash);
 
