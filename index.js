@@ -69,8 +69,8 @@ app.post("/creatium-payment", async (req, res) => {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             locale: "en",
-            allow_promotion_codes: false,           
-            customer_email: email, // Отправка чека на email
+            allow_promotion_codes: false,            
+            customer_email: req.body.email, // Отправка чека на email
             line_items: [
                 {
                     price_data: {
