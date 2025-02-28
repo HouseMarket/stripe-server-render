@@ -98,7 +98,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     let event;
 
     try {
-        // Передаём req.body вместо req.rawBody
+        // Исправлено: Передаём req.body вместо req.rawBody
         event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
@@ -109,18 +109,13 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
             console.log("✅ Payment completed for:", payment_key);
 
             // Отправляем статус оплаты в Creatium
-            const creatiumResponse = await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
+            await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    payment_key: payment_key,
-                    status: "succeeded"
-                })
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ payment_key, status: "succeeded" })
             });
 
-            console.log("✅ Creatium response status:", creatiumResponse.status);
+            console.log("✅ Notification sent to Creatium");
         }
 
         res.json({ received: true });
