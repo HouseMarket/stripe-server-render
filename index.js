@@ -16,19 +16,24 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
     console.log("🔹 Content-Type:", req.headers["content-type"]);
 
-    // ✅ Проверяем наличие rawBody, если нет — создаём его
+    // ✅ Проверяем наличие req.rawBody, если его нет, создаём Buffer вручную
     let rawBodyBuffer = req.rawBody;
     if (!rawBodyBuffer || !Buffer.isBuffer(rawBodyBuffer)) {
         console.warn("⚠️ req.rawBody отсутствует, создаём Buffer вручную!");
-        rawBodyBuffer = Buffer.from(req.body || ""); // Если нет тела, создаём пустой Buffer
+        rawBodyBuffer = Buffer.from(req.body || "", "utf-8"); // Создаём Buffer с правильной кодировкой
     }
 
     console.log("✅ req.rawBody создан, длина:", rawBodyBuffer.length, "байт");
 
+    // 🔍 Логируем SHA256 и HEX перед отправкой в constructEvent()
+    const computedHash = crypto.createHash("sha256").update(rawBodyBuffer).digest("hex");
+    console.log("🔹 req.rawBody SHA256:", computedHash);
+    console.log("🔹 req.rawBody HEX (первые 100 символов):", rawBodyBuffer.toString("hex").slice(0, 100));
+
     try {
         const sig = req.headers["stripe-signature"];
 
-        // 🔥 Используем rawBodyBuffer
+        // 🔥 ОЧЕНЬ ВАЖНО: Используем именно `rawBodyBuffer` без изменений
         const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig.trim(), process.env.STRIPE_WEBHOOK_SECRET.trim());
 
         console.log("✅ Webhook received:", event.type);
