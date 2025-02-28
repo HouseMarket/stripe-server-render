@@ -10,7 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 app.use(cors());
 
-import crypto from "crypto";
+import * as crypto from "crypto";
 
 // Эндпоинт для обработки вебхуков от Stripe (должен быть до express.json())
 app.post("/webhook", express.raw({ 
@@ -34,25 +34,24 @@ app.post("/webhook", express.raw({
     console.log("🔹 req.rawBody HEX (первые 100 символов):", req.rawBody.toString("hex").slice(0, 100));
 
     // Вычисляем SHA256 хеш
-    const crypto = await import("crypto");
+    console.log("🔹 req.rawBody (как строка, перед хешем):", req.rawBody.toString());
 
-console.log("🔹 req.rawBody (как строка, перед хешем):", req.rawBody.toString());
+    // 🔍 Вычисляем новый SHA256-хеш и сравниваем его с оригинальным
+    const computedHash = crypto.createHash("sha256").update(req.rawBody).digest("hex");
+    console.log("🔹 req.rawBody SHA256 (после обработки):", computedHash);
 
-// 🔍 Вычисляем новый SHA256-хеш и сравниваем его с оригинальным
-const computedHash = crypto.createHash("sha256").update(req.rawBody).digest("hex");
-console.log("🔹 req.rawBody SHA256 (после обработки):", computedHash);
+    try {
+        const sig = req.headers["stripe-signature"];
+        const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
 
-console.log("🔹 Сравнение с оригинальным SHA256: ", computedHash === "4a4d7832a32f3ca6ed194f49a1afda8c9edda03c70d7ee884cc34de4ee921243" ? "✅ Совпадает" : "❌ НЕ совпадает");
+        console.log("✅ Webhook received:", event.type);
 
-try {
-    const sig = req.headers["stripe-signature"];
-    
-    const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
-    console.log("✅ Webhook received:", event.type);
-} catch (error) {
-    console.error("❌ Webhook Error:", error.message);
-    res.status(400).json({ error: "Webhook error" });
-}
+        return res.json({ received: true });  // ✅ Успешный ответ Stripe
+    } catch (error) {
+        console.error("❌ Webhook Error:", error.message);
+        return res.status(400).json({ error: "Webhook error" });
+    }
+});
 
 // Подключаем JSON-парсер ПОСЛЕ вебхуков
 app.use(express.json()); // Обычный JSON-парсинг для всех эндпоинтов, кроме вебхуков
