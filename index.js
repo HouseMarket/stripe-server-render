@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// ✅ Важно! Вебхук должен идти ДО express.json() и express.urlencoded()
+// 🔥 Важно! Вебхук должен идти ДО express.json() и express.urlencoded()
 app.post(
     "/webhook",
     express.raw({ 
@@ -39,8 +39,10 @@ app.post(
         try {
             const sig = req.headers["stripe-signature"];
 
-            // 🔥 Пробуем передавать тело запроса как строку UTF-8
-            const event = stripe.webhooks.constructEvent(req.rawBody.toString("utf8"), sig, process.env.STRIPE_WEBHOOK_SECRET);
+            // 🔥 Перед вызовом constructEvent создаём новый Buffer
+            const rawBodyBuffer = Buffer.from(req.rawBody);
+
+            const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET);
 
             console.log("✅ Webhook received:", event.type);
 
