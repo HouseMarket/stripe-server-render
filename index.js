@@ -39,7 +39,16 @@ app.post("/webhook", express.raw({
 
     try {
         const sig = req.headers["stripe-signature"];
-        console.log("🔹 req.rawBody (как строка):", req.rawBody.toString());
+        import crypto from "crypto";
+
+console.log("🔹 req.rawBody (как строка, перед хешем):", req.rawBody.toString());
+
+// 🔍 Вычисляем новый SHA256-хеш и сравниваем его с оригинальным
+const computedHash = crypto.createHash("sha256").update(req.rawBody).digest("hex");
+console.log("🔹 req.rawBody SHA256 (после обработки):", computedHash);
+
+console.log("🔹 Сравнение с оригинальным SHA256: ", computedHash === "4a4d7832a32f3ca6ed194f49a1afda8c9edda03c70d7ee884cc34de4ee921243" ? "✅ Совпадает" : "❌ НЕ совпадает");
+
         const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
