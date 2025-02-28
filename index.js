@@ -30,6 +30,7 @@ app.post(
         }
         
         console.log("✅ req.rawBody type (Buffer):", Buffer.isBuffer(req.rawBody) ? "✅ Да" : "❌ Нет");
+        console.log("✅ req.rawBody length:", req.rawBody.length, "bytes");
 
         // 🔍 Логируем HEX и SHA256 тела запроса
         console.log("🔹 req.rawBody HEX (первые 100 символов):", req.rawBody.toString("hex").slice(0, 100));
