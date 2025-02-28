@@ -22,13 +22,14 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
     console.log("🔹 Content-Type:", req.headers["content-type"]);
 
-    if (!req.body || typeof req.body !== "object") {
-        console.error("❌ req.body отсутствует или имеет неверный формат!");
+    if (!req.body) {
+        console.error("❌ req.body отсутствует!");
         return res.status(400).json({ error: "Invalid request body" });
     }
 
-    // 🔍 Создаём `Buffer` из `req.body`
-    const rawBodyBuffer = Buffer.from(JSON.stringify(req.body));
+    // ✅ Используем оригинальный `req.body`, если это Buffer, иначе создаём Buffer из него
+    const rawBodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
+
     console.log("✅ req.rawBody type (Buffer):", Buffer.isBuffer(rawBodyBuffer) ? "✅ Да" : "❌ Нет");
     console.log("✅ req.rawBody length:", rawBodyBuffer.length, "bytes");
 
