@@ -12,11 +12,8 @@ app.use(cors());
 
 import * as crypto from "crypto";
 
-// Эндпоинт для обработки вебхуков от Stripe (должен быть до express.json())
-app.post("/webhook", express.raw({ 
-    type: "application/json", 
-    verify: (req, res, buf) => { req.rawBody = buf; } // Сохраняем Buffer
-}), async (req, res) => {
+// Эндпоинт для обработки вебхуков от Stripe (должен быть ДО express.json())
+app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
     console.log("🔹 Вебхук получен от Stripe");
     console.log("🔹 Headers:", req.headers);
     console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
@@ -29,25 +26,32 @@ app.post("/webhook", express.raw({
 
     console.log("🔹 req.rawBody type (должен быть Buffer):", Buffer.isBuffer(req.rawBody) ? "✅ Buffer" : "❌ NOT Buffer");
 
-    // Принудительно сохраняем rawBody как строку перед подписью
-    const rawBody = req.rawBody.toString();
-
-    console.log("🔹 rawBody (как строка перед подписью):", rawBody);
-
-    // 🔍 Вычисляем новый SHA256-хеш и сравниваем его с оригинальным
-    const computedHash = crypto.createHash("sha256").update(rawBody).digest("hex");
-    console.log("🔹 rawBody SHA256 (после обработки):", computedHash);
-
     try {
         const sig = req.headers["stripe-signature"];
-        const event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
-
+        const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        
         console.log("✅ Webhook received:", event.type);
 
-        return res.json({ received: true });  // ✅ Успешный ответ Stripe
+        if (event.type === "checkout.session.completed") {
+            const session = event.data.object;
+            const payment_key = session.success_url.split("payment_key=")[1];
+
+            console.log("✅ Payment completed for:", payment_key);
+
+            // Отправляем статус оплаты в Creatium
+            await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ payment_key, status: "succeeded" })
+            });
+
+            console.log("✅ Notification sent to Creatium");
+        }
+
+        res.json({ received: true });
     } catch (error) {
         console.error("❌ Webhook Error:", error.message);
-        return res.status(400).json({ error: "Webhook error" });
+        res.status(400).json({ error: "Webhook error" });
     }
 });
 
