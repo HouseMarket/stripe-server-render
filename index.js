@@ -11,39 +11,35 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 app.use(cors());
 
 // Эндпоинт для обработки вебхуков от Stripe (должен быть до express.json())
+const crypto = require("crypto");
+
 app.post("/webhook", express.raw({ 
     type: "application/json", 
-    verify: (req, res, buf) => { req.rawBody = Buffer.from(buf); } // Принудительно сохраняем Buffer
+    verify: (req, res, buf) => { req.rawBody = buf; } // Сохраняем Buffer
 }), async (req, res) => {
     console.log("🔹 Вебхук получен от Stripe");
     console.log("🔹 Headers:", req.headers);
     console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
     console.log("🔹 Content-Type:", req.headers["content-type"]);
 
-    const sig = req.headers["stripe-signature"];
-    let event;
+    if (!req.rawBody || !Buffer.isBuffer(req.rawBody)) {
+        console.error("❌ req.rawBody отсутствует или имеет неверный формат!");
+        return res.status(400).json({ error: "rawBody is missing or incorrect format" });
+    }
+
+    console.log("🔹 req.rawBody type (должен быть Buffer):", Buffer.isBuffer(req.rawBody) ? "✅ Buffer" : "❌ NOT Buffer");
+    console.log("🔹 req.rawBody (первые 200 символов):", req.rawBody.toString().slice(0, 200));
+
+    // Преобразуем тело запроса в HEX
+    console.log("🔹 req.rawBody HEX (первые 100 символов):", req.rawBody.toString("hex").slice(0, 100));
+
+    // Вычисляем SHA256 хеш
+    const hash = crypto.createHash("sha256").update(req.rawBody).digest("hex");
+    console.log("🔹 req.rawBody SHA256:", hash);
 
     try {
-        if (!req.rawBody || !Buffer.isBuffer(req.rawBody)) {
-            console.error("❌ req.rawBody отсутствует или имеет неверный формат!");
-            return res.status(400).json({ error: "rawBody is missing or incorrect format" });
-        }
-
-        console.log("🔹 req.rawBody type (должен быть Buffer):", Buffer.isBuffer(req.rawBody) ? "✅ Buffer" : "❌ NOT Buffer");
-        console.log("🔹 req.rawBody (первые 200 символов):", req.rawBody.toString().slice(0, 200));
-
-        // Преобразуем Buffer в Uint8Array перед валидацией подписи
-        const rawBodyUint8 = new Uint8Array(req.rawBody);
-
-        // Проверяем подпись вебхука
-        import crypto from "crypto";
-
-console.log("🔹 req.rawBody HEX (первые 100 символов):", req.rawBody.toString("hex").slice(0, 100));
-
-// Вычисляем SHA256 хеш тела запроса
-const hash = crypto.createHash("sha256").update(req.rawBody).digest("hex");
-console.log("🔹 req.rawBody SHA256:", hash);
-        event = stripe.webhooks.constructEvent(rawBodyUint8, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        const sig = req.headers["stripe-signature"];
+        const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
         if (event.type === "checkout.session.completed") {
@@ -52,7 +48,6 @@ console.log("🔹 req.rawBody SHA256:", hash);
 
             console.log("✅ Payment completed for:", payment_key);
 
-            // Отправляем статус оплаты в Creatium
             await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
