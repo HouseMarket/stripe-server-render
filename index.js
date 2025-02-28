@@ -36,6 +36,13 @@ app.post("/webhook", express.raw({
         const rawBodyUint8 = new Uint8Array(req.rawBody);
 
         // Проверяем подпись вебхука
+        import crypto from "crypto";
+
+console.log("🔹 req.rawBody HEX (первые 100 символов):", req.rawBody.toString("hex").slice(0, 100));
+
+// Вычисляем SHA256 хеш тела запроса
+const hash = crypto.createHash("sha256").update(req.rawBody).digest("hex");
+console.log("🔹 req.rawBody SHA256:", hash);
         event = stripe.webhooks.constructEvent(rawBodyUint8, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
