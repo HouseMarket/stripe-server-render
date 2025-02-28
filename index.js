@@ -16,14 +16,20 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
     console.log("🔹 Content-Type:", req.headers["content-type"]);
 
-    // Принудительно логируем полный req.rawBody
-    console.log("🔹 req.rawBody (оригинал перед Stripe валидацией):", req.rawBody.toString());
+    // ✅ Проверяем наличие rawBody, если нет — создаём его
+    let rawBodyBuffer = req.rawBody;
+    if (!rawBodyBuffer || !Buffer.isBuffer(rawBodyBuffer)) {
+        console.warn("⚠️ req.rawBody отсутствует, создаём Buffer вручную!");
+        rawBodyBuffer = Buffer.from(req.body || ""); // Если нет тела, создаём пустой Buffer
+    }
+
+    console.log("✅ req.rawBody создан, длина:", rawBodyBuffer.length, "байт");
 
     try {
         const sig = req.headers["stripe-signature"];
 
-        // Передаём сырой rawBody
-        const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        // 🔥 Используем rawBodyBuffer
+        const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig.trim(), process.env.STRIPE_WEBHOOK_SECRET.trim());
 
         console.log("✅ Webhook received:", event.type);
 
