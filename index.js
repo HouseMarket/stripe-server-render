@@ -15,9 +15,9 @@ app.use(express.urlencoded({ extended: true }));
 // Эндпоинт для создания платежной сессии
 app.post("/create-checkout-session", async (req, res) => {
     try {
-        const { product, price, currency, email } = req.body;
+        const { product, price, currency } = req.body;
 
-        if (!product || !price || !currency || !email) {
+        if (!product || !price || !currency) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
@@ -25,8 +25,6 @@ app.post("/create-checkout-session", async (req, res) => {
             payment_method_types: ["card"], // Отключаем Link
             locale: "en",
             allow_promotion_codes: false,
-            // Если email не указан, не передаём customer_email
-            ...(email && email !== "no-email@example.com" ? { customer_email: email } : {}), // Отправка чека на email
             line_items: [
                 {
                     price_data: {
@@ -59,18 +57,16 @@ app.post("/creatium-payment", async (req, res) => {
         const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.items?.[0]?.title || "Unknown Product";
         const price = Math.round(parseFloat(req.body.payment?.amount) * 100) || null;
         const currency = req.body.payment?.currency || "nzd"; // Если пусто, ставим NZD
-        const email = req.body.payment?.email || "no-email@example.com"; // Если нет email, ставим заглушку
 
-        if (!payment_key || !product || isNaN(price) || !currency || !email) {
-            console.log("❌ Missing required fields:", { payment_key, product, price, currency, email });
-            return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency, email } });
+        if (!payment_key || !product || isNaN(price) || !currency) {
+            console.log("❌ Missing required fields:", { payment_key, product, price, currency });
+            return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency } });
         }
 
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"], // Отключаем Link
             locale: "en",
             allow_promotion_codes: false,
-            customer_email: email, // Отправка чека на email
             line_items: [
                 {
                     price_data: {
@@ -135,4 +131,3 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
