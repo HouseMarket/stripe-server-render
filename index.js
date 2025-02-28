@@ -10,16 +10,28 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 app.use(cors());
 
-// Эндпоинт для обработки вебхуков от Stripe (ВАЖНО: должен быть ДО express.json())
+// Эндпоинт для обработки вебхуков от Stripe (должен быть до express.json())
 app.post("/webhook", express.raw({ 
     type: "application/json", 
     verify: (req, res, buf) => { req.rawBody = buf; } // Сохраняем "сырое" тело запроса
 }), async (req, res) => {
+    console.log("🔹 Вебхук получен от Stripe");
+    console.log("🔹 Headers:", req.headers);
+    console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
+
     const sig = req.headers["stripe-signature"];
     let event;
 
     try {
-        // Используем req.rawBody вместо req.body
+        // Проверяем, есть ли req.rawBody
+        if (!req.rawBody) {
+            console.error("❌ req.rawBody отсутствует! Express мог его перезаписать.");
+            return res.status(400).json({ error: "rawBody is missing" });
+        }
+
+        console.log("🔹 req.rawBody (первые 200 символов):", req.rawBody.toString().slice(0, 200));
+
+        // Проверяем правильность подписания вебхука
         event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
