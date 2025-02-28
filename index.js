@@ -2,19 +2,20 @@ import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
 import dotenv from "dotenv";
+import crypto from "crypto"; // Для вычисления SHA256
 
 dotenv.config();
 
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// 🔥 Важно! Вебхук должен идти ДО express.json() и express.urlencoded()!
+// ✅ Важно! Вебхук должен идти ДО express.json() и express.urlencoded()
 app.post(
     "/webhook",
     express.raw({ 
         type: "application/json", 
         verify: (req, res, buf) => {
-            req.rawBody = buf; // Сохраняем сырое тело запроса
+            req.rawBody = buf; // Сохраняем оригинальное тело запроса
         } 
     }),
     async (req, res) => {
@@ -23,16 +24,23 @@ app.post(
         console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
         console.log("🔹 Content-Type:", req.headers["content-type"]);
 
-        // 🔍 Проверяем, что req.rawBody является Buffer
         if (!req.rawBody || !Buffer.isBuffer(req.rawBody)) {
             console.error("❌ req.rawBody отсутствует или имеет неверный формат!");
             return res.status(400).json({ error: "rawBody is missing or incorrect format" });
         }
+        
         console.log("✅ req.rawBody type (Buffer):", Buffer.isBuffer(req.rawBody) ? "✅ Да" : "❌ Нет");
+
+        // 🔍 Логируем HEX и SHA256 тела запроса
+        console.log("🔹 req.rawBody HEX (первые 100 символов):", req.rawBody.toString("hex").slice(0, 100));
+        const computedHash = crypto.createHash("sha256").update(req.rawBody).digest("hex");
+        console.log("🔹 req.rawBody SHA256 (перед отправкой в constructEvent):", computedHash);
 
         try {
             const sig = req.headers["stripe-signature"];
-            const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+
+            // 🔥 Пробуем передавать тело запроса как строку UTF-8
+            const event = stripe.webhooks.constructEvent(req.rawBody.toString("utf8"), sig, process.env.STRIPE_WEBHOOK_SECRET);
 
             console.log("✅ Webhook received:", event.type);
 
@@ -62,8 +70,8 @@ app.post(
 
 // ✅ Только теперь подключаем JSON-парсер
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
 // Эндпоинт для создания платежной сессии
 app.post("/create-checkout-session", async (req, res) => {
