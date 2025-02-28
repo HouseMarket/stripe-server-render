@@ -1,6 +1,5 @@
 import express from "express";
 import Stripe from "stripe";
-import bodyParser from "body-parser";
 import cors from "cors";
 import dotenv from "dotenv";
 
@@ -10,8 +9,8 @@ const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 app.use(cors());
-app.use(express.json()); // Вместо bodyParser.json()
-app.use(express.urlencoded({ extended: true })); // Добавляем поддержку form-data
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } })); // Гарантируем передачу сырого тела для вебхуков
+app.use(express.urlencoded({ extended: true }));
 
 // Эндпоинт для создания платежной сессии
 app.post("/create-checkout-session", async (req, res) => {
@@ -26,7 +25,8 @@ app.post("/create-checkout-session", async (req, res) => {
             payment_method_types: ["card"], // Отключаем Link
             locale: "en",
             allow_promotion_codes: false,
-            customer_email: email, // Отправка чека на email
+            // Если email не указан, не передаём customer_email
+            ...(email && email !== "no-email@example.com" ? { customer_email: email } : {}), // Отправка чека на email
             line_items: [
                 {
                     price_data: {
@@ -102,7 +102,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     let event;
 
     try {
-        event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
         if (event.type === "checkout.session.completed") {
@@ -135,3 +135,4 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
