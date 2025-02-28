@@ -13,27 +13,34 @@ app.use(cors());
 // Эндпоинт для обработки вебхуков от Stripe (должен быть до express.json())
 app.post("/webhook", express.raw({ 
     type: "application/json", 
-    verify: (req, res, buf) => { req.rawBody = Buffer.from(buf); } // Преобразуем rawBody в Buffer
+    verify: (req, res, buf) => { req.rawBody = buf; } // Сохраняем "сырое" тело запроса
 }), async (req, res) => {
     console.log("🔹 Вебхук получен от Stripe");
     console.log("🔹 Headers:", req.headers);
     console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
-    console.log("🔹 Content-Type:", req.headers["content-type"]);
+    console.log("🔹 Content-Type (до исправления):", req.headers["content-type"]);
+
+    // Принудительно убираем "charset=utf-8"
+    if (req.headers["content-type"] && req.headers["content-type"].includes("charset")) {
+        req.headers["content-type"] = "application/json";
+    }
+
+    console.log("🔹 Content-Type (после исправления):", req.headers["content-type"]);
 
     const sig = req.headers["stripe-signature"];
     let event;
 
     try {
-        // Проверяем, есть ли req.rawBody и приводим к Buffer
+        // Проверяем, есть ли req.rawBody
         if (!req.rawBody) {
-            console.error("❌ req.rawBody отсутствует! Express мог его перезаписать.");
+            console.error("❌ req.rawBody отсутствует!");
             return res.status(400).json({ error: "rawBody is missing" });
         }
 
-        console.log("🔹 req.rawBody type (должен быть Buffer):", Buffer.isBuffer(req.rawBody) ? "Buffer" : typeof req.rawBody);
+        console.log("🔹 req.rawBody type:", Buffer.isBuffer(req.rawBody) ? "✅ Buffer" : "❌ NOT Buffer");
         console.log("🔹 req.rawBody (первые 200 символов):", req.rawBody.toString().slice(0, 200));
 
-        // Используем req.rawBody для проверки подписи
+        // Проверяем подпись вебхука
         event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
         console.log("✅ Webhook received:", event.type);
 
