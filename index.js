@@ -16,9 +16,9 @@ app.use(express.urlencoded({ extended: true })); // Добавляем подд�
 // Эндпоинт для создания платежной сессии
 app.post("/create-checkout-session", async (req, res) => {
     try {
-        const { product, price, currency } = req.body;
+        const { product, price, currency, email } = req.body;
 
-        if (!product || !price || !currency) {
+        if (!product || !price || !currency || !email) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
@@ -26,8 +26,7 @@ app.post("/create-checkout-session", async (req, res) => {
             payment_method_types: ["card"], // Отключаем Link
             locale: "en",
             allow_promotion_codes: false,
-            billing_address_collection: "required", // Убираем сохранённые методы оплаты
-            receipt_email: req.body.email, // Отправка чека на email
+            customer_email: email, // Отправка чека на email
             line_items: [
                 {
                     price_data: {
@@ -68,10 +67,10 @@ app.post("/creatium-payment", async (req, res) => {
         }
 
         const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
+            payment_method_types: ["card"], // Отключаем Link
             locale: "en",
-            allow_promotion_codes: false,            
-            receipt_email: email,
+            allow_promotion_codes: false,
+            customer_email: email, // Отправка чека на email
             line_items: [
                 {
                     price_data: {
