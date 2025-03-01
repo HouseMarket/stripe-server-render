@@ -30,7 +30,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
-            const payment_key = session.metadata?.payment_key || "undefined";
+            const payment_key = session.metadata?.payment_key || session.id || "undefined";
 
             console.log("✅ Payment completed for:", payment_key);
 
@@ -72,7 +72,7 @@ app.use(express.urlencoded({ extended: true }));
 app.post("/creatium-payment", async (req, res) => {
     console.log("🟢 Запрос от Creatium:", JSON.stringify(req.body, null, 2));
 
-    const payment_key = req.body.payment?.key?.trim();
+    const payment_key = req.body.payment?.key || req.body.order?.id || req.body.member?.id || "undefined";
     const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.items?.[0]?.title || "Unknown Product";
     const price = Math.round(parseFloat(req.body.payment?.amount) * 100) || null;
     const currency = req.body.payment?.currency || "nzd"; 
