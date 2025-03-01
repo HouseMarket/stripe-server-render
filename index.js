@@ -10,6 +10,7 @@ const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // ✅ Вебхук должен идти ДО express.json() и express.urlencoded()!
+// ✅ Вебхук от Stripe
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
     console.log("🔹 Вебхук получен от Stripe");
 
@@ -29,23 +30,29 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
-            const payment_key = session.metadata?.payment_key;
-
-            if (!payment_key) {
-                console.error("❌ Ошибка: payment_key отсутствует в metadata!");
-                return res.status(400).json({ error: "Missing payment_key in metadata" });
-            }
+            const payment_key = session.metadata?.payment_key || "undefined";
 
             console.log("✅ Payment completed for:", payment_key);
 
-            // Отправляем статус оплаты в Creatium
-            await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ payment_key, status: "succeeded" })
+            // 🔍 ЛОГИРУЕМ ОТПРАВКУ В CREATIUM
+            console.log("📤 Отправляем запрос в Creatium:", {
+                payment_key: payment_key,
+                status: "succeeded"
             });
 
-            console.log("✅ Уведомление отправлено в Creatium");
+            try {
+                const creatiumResponse = await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ payment_key, status: "succeeded" })
+                });
+
+                const responseText = await creatiumResponse.text(); // Читаем текст ответа
+                console.log("📥 Ответ от Creatium:", responseText);
+
+            } catch (fetchError) {
+                console.error("❌ Ошибка при отправке в Creatium:", fetchError.message);
+            }
         }
 
         res.json({ received: true });
