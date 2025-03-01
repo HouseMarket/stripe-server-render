@@ -66,7 +66,7 @@ app.post("/creatium-payment", async (req, res) => {
     try {
         console.log("\n🔹 Запрос от Creatium:", JSON.stringify(req.body, null, 2));
 
-        const payment_key = req.body.payment?.key || req.body.payment?.external_id || null;
+        const payment_key = req.body.payment?.key || req.body.payment?.external_id || `order_${Date.now()}`;
         const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.items?.[0]?.title || "Unknown Product";
         const price = Math.round(parseFloat(req.body.payment?.amount) * 100) || null;
         const currency = req.body.payment?.currency || "nzd"; // ✅ По умолчанию NZD
@@ -80,6 +80,7 @@ app.post("/creatium-payment", async (req, res) => {
             payment_method_types: ["card"], // ✅ Отключили Link
             locale: "en",
             allow_promotion_codes: false,
+            metadata: { payment_key }, // ✅ Принудительно передаём `payment_key`
             line_items: [
                 {
                     price_data: {
@@ -93,12 +94,13 @@ app.post("/creatium-payment", async (req, res) => {
                 },
             ],
             mode: "payment",
-            metadata: { payment_key }, // ✅ Теперь payment_key передаётся в webhook
             success_url: `${process.env.CLIENT_URL}/payment-success?payment_key=${payment_key}`,
             cancel_url: `${process.env.CLIENT_URL}/cancel?payment_key=${payment_key}`,
         });
 
         console.log("✅ Создана платёжная сессия:", session.url);
+        console.log("🔹 Metadata передано в Stripe:", session.metadata);
+
         res.json({ url: session.url });
     } catch (error) {
         console.log("❌ Ошибка при создании платежной сессии:", error.message);
