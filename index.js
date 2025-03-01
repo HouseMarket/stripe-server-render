@@ -11,10 +11,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // ✅ Вебхук должен идти ДО express.json() и express.urlencoded()!
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-    console.log("\n🔹 Вебхук получен от Stripe");
-    console.log("🔹 Headers:", req.headers);
-    console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
-    console.log("🔹 Content-Type:", req.headers["content-type"]);
+    console.log("🔹 Вебхук получен от Stripe");
 
     let rawBodyBuffer = req.rawBody;
     if (!rawBodyBuffer || !Buffer.isBuffer(rawBodyBuffer)) {
@@ -22,31 +19,33 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         rawBodyBuffer = Buffer.from(req.body || "", "utf-8");
     }
 
-    console.log(`✅ req.rawBody создан, длина: ${rawBodyBuffer.length} байт`);
-
-    const computedHash = crypto.createHash("sha256").update(rawBodyBuffer).digest("hex");
-    console.log("🔹 req.rawBody SHA256:", computedHash);
-    console.log("🔹 req.rawBody HEX (100 символов):", rawBodyBuffer.toString("hex").slice(0, 100));
+    console.log("✅ req.rawBody создан, длина:", rawBodyBuffer.length, "байт");
 
     try {
         const sig = req.headers["stripe-signature"];
         const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig.trim(), process.env.STRIPE_WEBHOOK_SECRET.trim());
 
-        console.log("\n✅ Webhook received:", event.type);
+        console.log("✅ Webhook received:", event.type);
 
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
-            const payment_key = session.metadata?.payment_key || "undefined"; // ✅ Теперь в metadata
+            const payment_key = session.metadata?.payment_key;
+
+            if (!payment_key) {
+                console.error("❌ Ошибка: payment_key отсутствует в metadata!");
+                return res.status(400).json({ error: "Missing payment_key in metadata" });
+            }
 
             console.log("✅ Payment completed for:", payment_key);
 
+            // Отправляем статус оплаты в Creatium
             await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ payment_key, status: "succeeded" })
             });
 
-            console.log("✅ Notification sent to Creatium");
+            console.log("✅ Уведомление отправлено в Creatium");
         }
 
         res.json({ received: true });
