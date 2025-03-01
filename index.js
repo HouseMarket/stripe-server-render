@@ -70,52 +70,42 @@ app.use(express.urlencoded({ extended: true }));
 // ✅ Маршрут для создания сессии оплаты (Creatium)
 // ✅ Эндпоинт для обработки запроса от Creatium
 app.post("/creatium-payment", async (req, res) => {
-    try {
-        console.log("🔹 Запрос от Creatium:", JSON.stringify(req.body, null, 2));
+    console.log("🟢 Запрос от Creatium:", JSON.stringify(req.body, null, 2));
 
-        const payment_key = req.body.payment?.key || req.body.payment?.external_id || null;
-        const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.items?.[0]?.title || "Unknown Product";
-        const price = Math.round(parseFloat(req.body.payment?.amount) * 100) || null;
-        const currency = req.body.payment?.currency || "nzd"; // Если пусто, ставим NZD
+    const payment_key = req.body.payment?.key?.trim();
+    const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.items?.[0]?.title || "Unknown Product";
+    const price = Math.round(parseFloat(req.body.payment?.amount) * 100) || null;
+    const currency = req.body.payment?.currency || "nzd"; 
 
-        if (!payment_key || !product || isNaN(price) || !currency) {
-            console.log("❌ Missing required fields:", { payment_key, product, price, currency });
-            return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency } });
-        }
-
-        // ✅ Передаём `payment_key` в metadata
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
-            locale: "en",
-            allow_promotion_codes: false,
-            line_items: [
-                {
-                    price_data: {
-                        currency,
-                        product_data: {
-                            name: product,
-                        },
-                        unit_amount: price,
-                    },
-                    quantity: 1,
-                },
-            ],
-            metadata: {
-                payment_key: payment_key, // <-- 🎯 Передаём `payment_key` в Stripe!
-            },
-            mode: "payment",
-            success_url: `${process.env.CLIENT_URL}/payment-success?payment_key=${payment_key}`,
-            cancel_url: `${process.env.CLIENT_URL}/cancel?payment_key=${payment_key}`,
-        });
-
-        console.log("✅ Создана платёжная сессия:", session.url);
-        console.log("🔹 Metadata передано в Stripe:", session.metadata);
-
-        res.json({ url: session.url });
-    } catch (error) {
-        console.log("❌ Error creating payment session:", error.message);
-        res.status(500).json({ error: error.message });
+    if (!payment_key || !product || isNaN(price) || !currency) {
+        console.log("❌ Ошибка: отсутствуют обязательные поля", { payment_key, product, price, currency });
+        return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency } });
     }
+
+    const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        locale: "en",
+        allow_promotion_codes: false,
+        line_items: [
+            {
+                price_data: {
+                    currency,
+                    product_data: { name: product },
+                    unit_amount: price,
+                },
+                quantity: 1,
+            },
+        ],
+        metadata: { payment_key }, // ✅ Передаём payment_key в metadata
+        mode: "payment",
+        success_url: `${process.env.CLIENT_URL}/payment-success?payment_key=${payment_key}`,
+        cancel_url: `${process.env.CLIENT_URL}/cancel?payment_key=${payment_key}`,
+    });
+
+    console.log("✅ Создана платёжная сессия:", session.url);
+    console.log("🔹 Metadata передано в Stripe:", session.metadata);
+
+    res.json({ url: session.url });
 });
 
 // Запуск сервера
