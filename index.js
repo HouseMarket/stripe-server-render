@@ -40,7 +40,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
-            const payment_key = session.success_url.split("payment_key=")[1];
+            const payment_key = session.metadata?.payment_key || "undefined";
 
             console.log("✅ Payment completed for:", payment_key);
 
