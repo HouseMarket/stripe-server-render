@@ -43,34 +43,37 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
             const payment_key = session.metadata?.payment_key || session.id || "undefined";
+            const order_id = session.metadata?.order_id || "undefined"; // ✅ Добавляем Order ID
 
             console.log("✅ Payment completed for:", payment_key);
+            console.log("✅ Order ID:", order_id);
 
             if (payment_key === "undefined") {
-                console.error("❌ Ошибка: payment_key не найден, не отправляем в Creatium и Интегромат.");
-                return res.status(400).json({ error: "payment_key is missing" });
-            }
+                console.error("❌ Ошибка: payment_key не найден, не отправляем в Creatium.");
+            } else {
+                console.log("📤 Отправляем запрос в Creatium...");
 
-            console.log("📤 Отправляем запрос в Creatium...");
-            try {
-                const creatiumResponse = await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ payment_key, status: "succeeded" }),
-                });
+                try {
+                    const creatiumResponse = await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ payment_key, status: "succeeded" }),
+                    });
 
-                const creatiumText = await creatiumResponse.text();
-                console.log("📥 Ответ от Creatium:", creatiumText);
-            } catch (fetchError) {
-                console.error("❌ Ошибка при отправке запроса в Creatium:", fetchError);
+                    const responseText = await creatiumResponse.text();
+                    console.log("📥 Ответ от Creatium:", responseText);
+                } catch (fetchError) {
+                    console.error("❌ Ошибка при отправке запроса в Creatium:", fetchError);
+                }
             }
 
             console.log("📤 Отправляем запрос в Интегромат...");
+
             try {
-                const integromatResponse = await fetch("https://hook.us1.make.com/smgwuylxjwwcboqf33cgj9flmlwybt74", {
+                const integromatResponse = await fetch("https://hook.us1.make.com/mrsw7jk8plde2fif7s2pszyqjr9rz1c1", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ payment_key, status: "succeeded" }),
+                    body: JSON.stringify({ payment_key, order_id, status: "succeeded" }), // ✅ Отправляем Order ID
                 });
 
                 const integromatText = await integromatResponse.text();
