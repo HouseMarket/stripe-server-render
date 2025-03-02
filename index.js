@@ -9,29 +9,26 @@ dotenv.config();
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// ✅ Вебхук должен идти ДО express.json() и express.urlencoded()!
+// ✅ Вебхук Stripe (должен идти перед express.json!)
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
     console.log("🔹 Вебхук получен от Stripe");
     console.log("🔹 Headers:", req.headers);
-    console.log("🔹 Stripe signature:", req.headers["stripe-signature"]);
-    console.log("🔹 Content-Type:", req.headers["content-type"]);
 
-    // ✅ Проверяем наличие req.rawBody, если его нет, создаём Buffer вручную
     let rawBodyBuffer = req.rawBody;
     if (!rawBodyBuffer || !Buffer.isBuffer(rawBodyBuffer)) {
         console.warn("⚠️ req.rawBody отсутствует, создаём Buffer вручную!");
-        rawBodyBuffer = Buffer.from(req.body || "", "utf-8"); // Создаём Buffer с правильной кодировкой
+        rawBodyBuffer = Buffer.from(req.body || "", "utf-8");
     }
 
     console.log("✅ req.rawBody создан, длина:", rawBodyBuffer.length, "байт");
 
-    // 🔍 Логируем SHA256 и HEX перед отправкой в constructEvent()
+    // 🔍 Логируем SHA256 и HEX перед отправкой в constructEvent
     const computedHash = crypto.createHash("sha256").update(rawBodyBuffer).digest("hex");
     console.log("🔹 req.rawBody SHA256:", computedHash);
     console.log("🔹 req.rawBody HEX (первые 100 символов):", rawBodyBuffer.toString("hex").slice(0, 100));
 
     try {
-        const sig = req.headers["stripe-signature"] || "";
+        const sig = req.headers["stripe-signature"];
 
         if (!sig) {
             console.error("❌ Webhook Signature Error: Stripe signature отсутствует!");
@@ -39,82 +36,72 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
             return res.status(400).json({ error: "Missing Stripe signature" });
         }
 
-        // 🔥 Используем `rawBodyBuffer` без изменений
-        let event;
-        try {
-            event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
-            console.log("✅ Webhook received:", event.type);
-        } catch (error) {
-            console.error("❌ Webhook Signature Error:", error.message);
-            return res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
-        }
+        const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
+        console.log("✅ Webhook received:", event.type);
 
-        // ✅ Если это успешный платеж, обрабатываем
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
-            const payment_key = session.metadata?.payment_key || session.id || "undefined";
+            const payment_key = session.metadata?.payment_key || "undefined";
 
             console.log("✅ Payment completed for:", payment_key);
 
             // 📤 Отправляем статус оплаты в Creatium
-            await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
+            const response = await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ payment_key, status: "succeeded" })
             });
 
-            console.log("✅ Notification sent to Creatium");
+            const responseData = await response.text();
+            console.log("📥 Ответ от Creatium:", responseData);
         }
 
         res.json({ received: true });
 
     } catch (error) {
-        console.error("❌ Webhook Error:", error.message);
-        res.status(400).json({ error: "Webhook error", details: error.message });
+        console.error("❌ Webhook Signature Error:", error.message);
+        res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
     }
 });
 
 // ✅ Эндпоинт для обработки запроса от Creatium
 app.post("/creatium-payment", express.json(), async (req, res) => {
-    console.log("🔹 Запрос от Creatium:", req.body);
+    console.log("🟢 Запрос от Creatium:", JSON.stringify(req.body, null, 2));
 
-    // ✅ Извлекаем payment_key из GET-параметров или тела запроса
-    const payment_key = req.body.page?.query?.payment_key || req.body.payment?.key || "undefined";
-    console.log("✅ Извлечён payment_key:", payment_key);
+    const payment_key = req.body.page?.query?.payment_key || req.body.payment?.key || req.body.order?.id || req.body.member?.id || "undefined";
+    const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.items?.[0]?.title || "Unknown Product";
+    const price = Math.round(parseFloat(req.body.payment?.amount) * 100) || null;
+    const currency = req.body.payment?.currency || "nzd";
 
-    if (payment_key === "undefined") {
-        console.error("❌ Ошибка: payment_key не найден!");
-        return res.status(400).json({ error: "payment_key is missing" });
+    if (!payment_key || !product || isNaN(price) || !currency) {
+        console.log("❌ Ошибка: отсутствуют обязательные поля", { payment_key, product, price, currency });
+        return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency } });
     }
 
-    // ✅ Создаём сессию оплаты
-    try {
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
-            mode: "payment",
-            locale: "en",
-            success_url: `${process.env.CLIENT_URL}/payment-success?payment_key=${payment_key}`,
-            cancel_url: `${process.env.CLIENT_URL}/cancel?payment_key=${payment_key}`,
-            line_items: [{
+    const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        locale: "en",
+        allow_promotion_codes: false,
+        line_items: [
+            {
                 price_data: {
-                    currency: "nzd",
-                    product_data: { name: "Creatium Payment" },
-                    unit_amount: Math.round(req.body.cart?.items[0]?.price * 100 || 0),
+                    currency,
+                    product_data: { name: product },
+                    unit_amount: price,
                 },
                 quantity: 1,
-            }],
-            metadata: { payment_key },
-        });
+            },
+        ],
+        metadata: { payment_key },
+        mode: "payment",
+        success_url: `${process.env.CLIENT_URL}/payment-success?payment_key=${payment_key}`,
+        cancel_url: `${process.env.CLIENT_URL}/cancel?payment_key=${payment_key}`,
+    });
 
-        console.log("✅ Создана платёжная сессия:", session.url);
-        console.log("🔹 Metadata передано в Stripe:", session.metadata);
+    console.log("✅ Создана платёжная сессия:", session.url);
+    console.log("🔹 Metadata передано в Stripe:", session.metadata);
 
-        res.json({ url: session.url });
-
-    } catch (error) {
-        console.error("❌ Ошибка при создании платёжной сессии:", error.message);
-        res.status(500).json({ error: "Failed to create payment session", details: error.message });
-    }
+    res.json({ url: session.url });
 });
 
 // ✅ Подключаем JSON-парсер после вебхуков
@@ -125,4 +112,5 @@ app.use(express.urlencoded({ extended: true }));
 // Запуск сервера
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
 
