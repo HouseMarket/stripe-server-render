@@ -31,7 +31,7 @@ console.log("🔹 req.rawBody SHA256:", computedHash);
 console.log("🔹 req.rawBody HEX (первые 100 символов):", rawBodyBuffer.toString("hex").slice(0, 100));
 
 try {
-    let sig = req.headers["stripe-signature"] || "";
+    const sig = req.headers["stripe-signature"] || "";
 
     if (!sig) {
         console.error("❌ Webhook Signature Error: Stripe signature отсутствует!");
@@ -41,40 +41,32 @@ try {
 
     // 🔥 ОЧЕНЬ ВАЖНО: Используем именно `rawBodyBuffer` без изменений
     const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
-    
+
     console.log("✅ Webhook received:", event.type);
-    
-    // (Здесь остальной код для обработки события)
-    
+
+    // ✅ Если это успешный платеж, обрабатываем
+    if (event.type === "checkout.session.completed") {
+        const session = event.data.object;
+        const payment_key = session.metadata?.payment_key || "undefined";
+
+        console.log("✅ Payment completed for:", payment_key);
+
+        // 📤 Отправляем статус оплаты в Creatium
+        await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ payment_key, status: "succeeded" })
+        });
+
+        console.log("✅ Notification sent to Creatium");
+    }
+
+    res.json({ received: true });
+
 } catch (error) {
     console.error("❌ Webhook Signature Error:", error.message);
-    return res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
-}       
-
-        console.log("✅ Webhook received:", event.type);
-
-        if (event.type === "checkout.session.completed") {
-            const session = event.data.object;
-            const payment_key = session.metadata?.payment_key || session.id;
-
-            console.log("✅ Payment completed for:", payment_key);
-
-            // Отправляем статус оплаты в Creatium
-            await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ payment_key, status: "succeeded" })
-            });
-
-            console.log("✅ Notification sent to Creatium");
-        }
-
-        res.json({ received: true });
-    } catch (error) {
-        console.error("❌ Webhook Signature Error:", error.message);
-        res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
-    }
-});
+    res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
+}
 
 // ✅ Эндпоинт для обработки запроса от Creatium
 app.post("/creatium-payment", express.json(), async (req, res) => {
