@@ -46,15 +46,25 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     
             console.log("✅ Payment completed for:", payment_key);
     
-            // 📤 Отправляем запрос в Creatium
-            const creatiumResponse = await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ payment_key, status: "succeeded" }),
-            });
+            if (payment_key === "undefined") {
+                console.error("❌ Ошибка: payment_key не найден, не отправляем в Creatium.");
+                return res.status(400).json({ error: "payment_key is missing" });
+            }
     
-            const responseText = await creatiumResponse.text();
-            console.log("📥 Ответ от Creatium:", responseText);
+            console.log("📤 Готовим запрос в Creatium...");
+    
+            try {
+                const creatiumResponse = await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ payment_key, status: "succeeded" }),
+                });
+    
+                const responseText = await creatiumResponse.text();
+                console.log("📥 Ответ от Creatium:", responseText);
+            } catch (fetchError) {
+                console.error("❌ Ошибка при отправке запроса в Creatium:", fetchError);
+            }
         }
     
         res.json({ received: true });
@@ -63,6 +73,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         console.error("❌ Webhook Signature Error:", error.message);
         res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
     }
+    
 });
 
 // ✅ Эндпоинт для обработки запроса от Creatium
