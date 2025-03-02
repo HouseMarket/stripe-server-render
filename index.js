@@ -28,36 +28,37 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     console.log("🔹 req.rawBody HEX (первые 100 символов):", rawBodyBuffer.toString("hex").slice(0, 100));
 
     try {
-        const sig = req.headers["stripe-signature"];
-
+        const sig = req.headers["stripe-signature"] || "";
+    
         if (!sig) {
             console.error("❌ Webhook Signature Error: Stripe signature отсутствует!");
             console.log("🔹 Все заголовки запроса:", req.headers);
             return res.status(400).json({ error: "Missing Stripe signature" });
         }
-
+    
         const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
+    
         console.log("✅ Webhook received:", event.type);
-
+    
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
             const payment_key = session.metadata?.payment_key || session.id || "undefined";
-
+    
             console.log("✅ Payment completed for:", payment_key);
-
-            // 📤 Отправляем статус оплаты в Creatium
-            const response = await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
+    
+            // 📤 Отправляем запрос в Creatium
+            const creatiumResponse = await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ payment_key, status: "succeeded" })
+                body: JSON.stringify({ payment_key, status: "succeeded" }),
             });
-
-            const responseData = await response.text();
-            console.log("📥 Ответ от Creatium:", responseData);
+    
+            const responseText = await creatiumResponse.text();
+            console.log("📥 Ответ от Creatium:", responseText);
         }
-
+    
         res.json({ received: true });
-
+    
     } catch (error) {
         console.error("❌ Webhook Signature Error:", error.message);
         res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
