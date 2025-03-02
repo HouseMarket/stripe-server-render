@@ -20,7 +20,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     let rawBodyBuffer = req.rawBody;
     if (!rawBodyBuffer || !Buffer.isBuffer(rawBodyBuffer)) {
         console.warn("⚠️ req.rawBody отсутствует, создаём Buffer вручную!");
-        rawBodyBuffer = Buffer.from(req.body || "", "utf-8");
+        rawBodyBuffer = Buffer.from(req.body || "", "utf-8"); // Создаём Buffer с правильной кодировкой
     }
 
     console.log("✅ req.rawBody создан, длина:", rawBodyBuffer.length, "байт");
@@ -40,17 +40,23 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         }
 
         // 🔥 Используем `rawBodyBuffer` без изменений
-        const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
+        let event;
+        try {
+            event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
+            console.log("✅ Webhook received:", event.type);
+        } catch (error) {
+            console.error("❌ Webhook Signature Error:", error.message);
+            return res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
+        }
 
-        console.log("✅ Webhook received:", event.type);
-
+        // ✅ Если это успешный платеж, обрабатываем
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
-            const payment_key = session.metadata?.payment_key || "undefined";
+            const payment_key = session.metadata?.payment_key || session.id || "undefined";
 
             console.log("✅ Payment completed for:", payment_key);
 
-            // Отправляем статус оплаты в Creatium
+            // 📤 Отправляем статус оплаты в Creatium
             await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -63,8 +69,51 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         res.json({ received: true });
 
     } catch (error) {
-        console.error("❌ Webhook Signature Error:", error.message);
-        res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
+        console.error("❌ Webhook Error:", error.message);
+        res.status(400).json({ error: "Webhook error", details: error.message });
+    }
+});
+
+// ✅ Эндпоинт для обработки запроса от Creatium
+app.post("/creatium-payment", express.json(), async (req, res) => {
+    console.log("🔹 Запрос от Creatium:", req.body);
+
+    // ✅ Извлекаем payment_key из GET-параметров или тела запроса
+    const payment_key = req.body.page?.query?.payment_key || req.body.payment?.key || "undefined";
+    console.log("✅ Извлечён payment_key:", payment_key);
+
+    if (payment_key === "undefined") {
+        console.error("❌ Ошибка: payment_key не найден!");
+        return res.status(400).json({ error: "payment_key is missing" });
+    }
+
+    // ✅ Создаём сессию оплаты
+    try {
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ["card"],
+            mode: "payment",
+            locale: "en",
+            success_url: `${process.env.CLIENT_URL}/payment-success?payment_key=${payment_key}`,
+            cancel_url: `${process.env.CLIENT_URL}/cancel?payment_key=${payment_key}`,
+            line_items: [{
+                price_data: {
+                    currency: "nzd",
+                    product_data: { name: "Creatium Payment" },
+                    unit_amount: Math.round(req.body.cart?.items[0]?.price * 100 || 0),
+                },
+                quantity: 1,
+            }],
+            metadata: { payment_key },
+        });
+
+        console.log("✅ Создана платёжная сессия:", session.url);
+        console.log("🔹 Metadata передано в Stripe:", session.metadata);
+
+        res.json({ url: session.url });
+
+    } catch (error) {
+        console.error("❌ Ошибка при создании платёжной сессии:", error.message);
+        res.status(500).json({ error: "Failed to create payment session", details: error.message });
     }
 });
 
