@@ -78,6 +78,7 @@ app.post("/creatium-payment", express.json(), async (req, res) => {
     const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         mode: "payment",
+        locale: "en",
         success_url: `${process.env.CLIENT_URL}/payment-success?payment_key=${payment_key}`,
         cancel_url: `${process.env.CLIENT_URL}/cancel?payment_key=${payment_key}`,
         line_items: [{
