@@ -26,34 +26,30 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     console.log("✅ req.rawBody создан, длина:", rawBodyBuffer.length, "байт");
 
     // 🔍 Логируем SHA256 и HEX перед отправкой в constructEvent()
-    const computedHash = crypto.createHash("sha256").update(rawBodyBuffer).digest("hex");
-    console.log("🔹 req.rawBody SHA256:", computedHash);
-    console.log("🔹 req.rawBody HEX (первые 100 символов):", rawBodyBuffer.toString("hex").slice(0, 100));
+const computedHash = crypto.createHash("sha256").update(rawBodyBuffer).digest("hex");
+console.log("🔹 req.rawBody SHA256:", computedHash);
+console.log("🔹 req.rawBody HEX (первые 100 символов):", rawBodyBuffer.toString("hex").slice(0, 100));
 
-    try {
-        const sig = req.headers["stripe-signature"] || "";
-if (!sig) {
-    console.error("❌ Webhook Signature Error: Stripe signature отсутствует!");
-    return res.status(400).json({ error: "Missing Stripe signature" });
-}
+try {
+    let sig = req.headers["stripe-signature"] || "";
 
-
-        // 🔥 ОЧЕНЬ ВАЖНО: Используем именно `rawBodyBuffer` без изменений
-        const sig = req.headers["stripe-signature"] || "";
     if (!sig) {
-    console.error("❌ Webhook Signature Error: Stripe signature отсутствует!");
-    console.log("🔹 Все заголовки запроса:", req.headers);
-    return res.status(400).json({ error: "Missing Stripe signature" });
+        console.error("❌ Webhook Signature Error: Stripe signature отсутствует!");
+        console.log("🔹 Все заголовки запроса:", req.headers);
+        return res.status(400).json({ error: "Missing Stripe signature" });
     }
 
-        try {
-            const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
-            console.log("✅ Webhook received:", event.type);
-        } catch (error) {
-            console.error("❌ Webhook Signature Error:", error.message);
-            return res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
-        }
-        
+    // 🔥 ОЧЕНЬ ВАЖНО: Используем именно `rawBodyBuffer` без изменений
+    const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
+    
+    console.log("✅ Webhook received:", event.type);
+    
+    // (Здесь остальной код для обработки события)
+    
+} catch (error) {
+    console.error("❌ Webhook Signature Error:", error.message);
+    return res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
+}       
 
         console.log("✅ Webhook received:", event.type);
 
