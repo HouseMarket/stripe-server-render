@@ -31,10 +31,29 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
     console.log("🔹 req.rawBody HEX (первые 100 символов):", rawBodyBuffer.toString("hex").slice(0, 100));
 
     try {
-        const sig = req.headers["stripe-signature"];
+        const sig = req.headers["stripe-signature"] || "";
+if (!sig) {
+    console.error("❌ Webhook Signature Error: Stripe signature отсутствует!");
+    return res.status(400).json({ error: "Missing Stripe signature" });
+}
+
 
         // 🔥 ОЧЕНЬ ВАЖНО: Используем именно `rawBodyBuffer` без изменений
-        const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig.trim(), process.env.STRIPE_WEBHOOK_SECRET.trim());
+        const sig = req.headers["stripe-signature"] || "";
+    if (!sig) {
+    console.error("❌ Webhook Signature Error: Stripe signature отсутствует!");
+    console.log("🔹 Все заголовки запроса:", req.headers);
+    return res.status(400).json({ error: "Missing Stripe signature" });
+    }
+
+        try {
+            const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
+            console.log("✅ Webhook received:", event.type);
+        } catch (error) {
+            console.error("❌ Webhook Signature Error:", error.message);
+            return res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
+        }
+        
 
         console.log("✅ Webhook received:", event.type);
 
