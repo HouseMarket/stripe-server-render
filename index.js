@@ -67,7 +67,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
             console.log("📤 Отправляем запрос в Интегромат...");
             try {
-                const integromatResponse = await fetch("https://hook.integromat.com/xxxxxxxxxxxxxx", {
+                const integromatResponse = await fetch("https://hook.us1.make.com/mrsw7jk8plde2fif7s2pszyqjr9rz1c1", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ payment_key, status: "succeeded" }),
