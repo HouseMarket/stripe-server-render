@@ -29,51 +29,63 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 
     try {
         const sig = req.headers["stripe-signature"] || "";
-    
+
         if (!sig) {
             console.error("❌ Webhook Signature Error: Stripe signature отсутствует!");
             console.log("🔹 Все заголовки запроса:", req.headers);
             return res.status(400).json({ error: "Missing Stripe signature" });
         }
-    
+
         const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
-    
+
         console.log("✅ Webhook received:", event.type);
-    
+
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
             const payment_key = session.metadata?.payment_key || session.id || "undefined";
-    
+
             console.log("✅ Payment completed for:", payment_key);
-    
+
             if (payment_key === "undefined") {
-                console.error("❌ Ошибка: payment_key не найден, не отправляем в Creatium.");
+                console.error("❌ Ошибка: payment_key не найден, не отправляем в Creatium и Интегромат.");
                 return res.status(400).json({ error: "payment_key is missing" });
             }
-    
-            console.log("📤 Готовим запрос в Creatium...");
-    
+
+            console.log("📤 Отправляем запрос в Creatium...");
             try {
                 const creatiumResponse = await fetch("https://api.creatium.io/integration-payment/third-party-payment", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ payment_key, status: "succeeded" }),
                 });
-    
-                const responseText = await creatiumResponse.text();
-                console.log("📥 Ответ от Creatium:", responseText);
+
+                const creatiumText = await creatiumResponse.text();
+                console.log("📥 Ответ от Creatium:", creatiumText);
             } catch (fetchError) {
                 console.error("❌ Ошибка при отправке запроса в Creatium:", fetchError);
             }
+
+            console.log("📤 Отправляем запрос в Интегромат...");
+            try {
+                const integromatResponse = await fetch("https://hook.integromat.com/xxxxxxxxxxxxxx", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ payment_key, status: "succeeded" }),
+                });
+
+                const integromatText = await integromatResponse.text();
+                console.log("📥 Ответ от Интегромата:", integromatText);
+            } catch (fetchError) {
+                console.error("❌ Ошибка при отправке запроса в Интегромат:", fetchError);
+            }
         }
-    
+
         res.json({ received: true });
-    
+
     } catch (error) {
         console.error("❌ Webhook Signature Error:", error.message);
         res.status(400).json({ error: "Webhook signature verification failed", details: error.message });
     }
-    
 });
 
 // ✅ Эндпоинт для обработки запроса от Creatium
