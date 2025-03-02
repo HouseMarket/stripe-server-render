@@ -92,18 +92,18 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 });
 
 // ✅ Эндпоинт для обработки запроса от Creatium
-app.post("/creatium-payment", async (req, res) => {
+app.post("/creatium-payment", express.json(), async (req, res) => {
     console.log("🟢 Запрос от Creatium:", JSON.stringify(req.body, null, 2));
 
     const payment_key = req.body.payment?.key || req.body.order?.id || req.body.member?.id || "undefined";
     const order_id = req.body.order?.id || "undefined"; // ✅ Добавляем Order ID
     const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.items?.[0]?.title || "Unknown Product";
     const price = Math.round(parseFloat(req.body.payment?.amount) * 100) || null;
-    const currency = req.body.payment?.currency || "nzd"; 
+    const currency = req.body.payment?.currency || "nzd";
 
-    if (!payment_key || !order_id || !product || isNaN(price) || !currency) {
-        console.log("❌ Ошибка: отсутствуют обязательные поля", { payment_key, order_id, product, price, currency });
-        return res.status(400).json({ error: "Missing required fields", received: { payment_key, order_id, product, price, currency } });
+    if (!payment_key || !product || isNaN(price) || !currency) {
+        console.log("❌ Ошибка: отсутствуют обязательные поля", { payment_key, product, price, currency });
+        return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency } });
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -120,7 +120,7 @@ app.post("/creatium-payment", async (req, res) => {
                 quantity: 1,
             },
         ],
-        metadata: { payment_key, order_id }, // ✅ Передаём order_id в metadata!
+        metadata: { payment_key, order_id },
         mode: "payment",
         success_url: `${process.env.CLIENT_URL}/payment-success?payment_key=${payment_key}`,
         cancel_url: `${process.env.CLIENT_URL}/cancel?payment_key=${payment_key}`,
