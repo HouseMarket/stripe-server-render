@@ -45,10 +45,11 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
             const session = event.data.object;
             const payment_key = session.metadata?.payment_key || session.id || "undefined";
             const order_id = session.metadata?.order_id || "undefined"; // ✅ Добавляем Order ID
-            const customerEmail = session.customer_email || "";
+            const email = session.customer_details?.email || "undefined";
 
             console.log("✅ Payment completed for:", payment_key);
-            console.log("✅ Order ID:", order_id);
+            console.log("✅ Order ID:", order_id);            
+            console.log("✅ Email:", email);
 
             if (payment_key === "undefined") {
                 console.error("❌ Ошибка: payment_key не найден, не отправляем в Creatium.");
@@ -75,7 +76,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
                 const integromatResponse = await fetch("https://hook.us1.make.com/mrsw7jk8plde2fif7s2pszyqjr9rz1c1", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ payment_key, order_id, status: "succeeded", email: customerEmail }), // ✅ Отправляем Order ID
+                    body: JSON.stringify({ payment_key, order_id, status: "succeeded", email }), // ✅ Отправляем Order ID
                 });
 
                 const integromatText = await integromatResponse.text();
