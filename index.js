@@ -39,14 +39,17 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
 
         console.log("✅ Webhook received:", event.type);
+        console.log("🔍 Полные данные о сессии Stripe:", JSON.stringify(event.data.object, null, 2));
 
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
             const payment_key = session.metadata?.payment_key || session.id || "undefined";
             const order_id = session.metadata?.order_id || "undefined"; // ✅ Добавляем Order ID
+            const email = session.customer_details?.email || "undefined";
 
             console.log("✅ Payment completed for:", payment_key);
-            console.log("✅ Order ID:", order_id);
+            console.log("✅ Order ID:", order_id);            
+            console.log("✅ Email:", email);
 
             if (payment_key === "undefined") {
                 console.error("❌ Ошибка: payment_key не найден, не отправляем в Creatium.");
@@ -73,7 +76,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
                 const integromatResponse = await fetch("https://hook.us1.make.com/mrsw7jk8plde2fif7s2pszyqjr9rz1c1", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ payment_key, order_id, status: "succeeded" }), // ✅ Отправляем Order ID
+                    body: JSON.stringify({ payment_key, order_id, status: "succeeded", email }), // ✅ Отправляем Order ID
                 });
 
                 const integromatText = await integromatResponse.text();
@@ -100,7 +103,7 @@ app.post("/creatium-payment", express.json(), async (req, res) => {
     const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.items?.[0]?.title || "Unknown Product";
     const price = Math.round(parseFloat(req.body.payment?.amount) * 100) || null;
     const currency = req.body.payment?.currency || "nzd";
-
+    
     if (!payment_key || !product || isNaN(price) || !currency) {
         console.log("❌ Ошибка: отсутствуют обязательные поля", { payment_key, product, price, currency });
         return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency } });
@@ -140,3 +143,5 @@ app.use(express.urlencoded({ extended: true }));
 // Запуск сервера
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
+
