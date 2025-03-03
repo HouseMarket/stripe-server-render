@@ -44,6 +44,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
             const session = event.data.object;
             const payment_key = session.metadata?.payment_key || session.id || "undefined";
             const order_id = session.metadata?.order_id || "undefined"; // ✅ Добавляем Order ID
+            const customerEmail = session.customer_email || "";
 
             console.log("✅ Payment completed for:", payment_key);
             console.log("✅ Order ID:", order_id);
@@ -73,7 +74,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
                 const integromatResponse = await fetch("https://hook.us1.make.com/mrsw7jk8plde2fif7s2pszyqjr9rz1c1", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ payment_key, order_id, status: "succeeded" }), // ✅ Отправляем Order ID
+                    body: JSON.stringify({ payment_key, order_id, status: "succeeded", email: customerEmail }), // ✅ Отправляем Order ID
                 });
 
                 const integromatText = await integromatResponse.text();
@@ -100,7 +101,7 @@ app.post("/creatium-payment", express.json(), async (req, res) => {
     const product = req.body.order?.fields_by_name?.["Название"] || req.body.cart?.items?.[0]?.title || "Unknown Product";
     const price = Math.round(parseFloat(req.body.payment?.amount) * 100) || null;
     const currency = req.body.payment?.currency || "nzd";
-
+    
     if (!payment_key || !product || isNaN(price) || !currency) {
         console.log("❌ Ошибка: отсутствуют обязательные поля", { payment_key, product, price, currency });
         return res.status(400).json({ error: "Missing required fields", received: { payment_key, product, price, currency } });
