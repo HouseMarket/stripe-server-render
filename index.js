@@ -39,6 +39,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         const event = stripe.webhooks.constructEvent(rawBodyBuffer, sig, process.env.STRIPE_WEBHOOK_SECRET.trim());
 
         console.log("✅ Webhook received:", event.type);
+        console.log("🔍 Полные данные о сессии Stripe:", JSON.stringify(event.data.object, null, 2));
 
         if (event.type === "checkout.session.completed") {
             const session = event.data.object;
